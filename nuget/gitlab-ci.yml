@@ -1,0 +1,108 @@
+image: mcr.microsoft.com/dotnet/sdk:8.0
+
+stages: # List of stages for jobs, and their order of execution
+  - build # Build services dependent on libraries
+  - deploy # Deploy services dependent on build output to Gitlab
+
+# Build the cloud_services_library solution
+aws-custom-class-libraries-nuget-package-build:
+  stage: build
+  artifacts:
+    untracked: true
+  script:
+    - cd aws-custom-class-libraries/nuget
+    - dotnet restore
+    - dotnet clean
+    - dotnet build -c Release  
+  rules:
+    # Build if this service has changed, and if merging into a major branch
+    - if: '$CI_COMMIT_BRANCH == "test"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "stage"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "prod"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+
+# Deploy the aws-custom-class-libraries-nuget-package solution to DEV stack
+aws-custom-class-libraries-nuget-package-deploy-dev:
+  stage: deploy
+  dependencies:
+    - aws-custom-class-libraries-nuget-package-build
+  artifacts:
+    untracked: true
+  environment:
+    name: dev
+  script:
+    - dotnet pack -c Release
+    - dotnet nuget add source "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/nuget/index.json" --name gitlab --username gitlab-ci-token --password $CI_JOB_TOKEN --store-password-in-clear-text
+    - dotnet nuget push "aws-custom-class-libraries/nuget/components/nuget-class-library/bin/Release/*.nupkg" --source gitlab
+    
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+
+# Deploy the aws-custom-class-libraries-nuget-package solution to TEST stack
+aws-custom-class-libraries-nuget-package-deploy-test:
+  stage: deploy
+  dependencies:
+    - aws-custom-class-libraries-nuget-package-build
+  artifacts:
+    untracked: true
+  environment:
+    name: test
+  script:
+    - dotnet pack -c Release
+    - dotnet nuget add source "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/nuget/index.json" --name gitlab --username gitlab-ci-token --password $CI_JOB_TOKEN --store-password-in-clear-text
+    - dotnet nuget push "aws-custom-class-libraries/nuget/components/nuget-class-library/bin/Release/*.nupkg" --source gitlab
+    
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+
+# Deploy the aws-custom-class-libraries-nuget-package solution to STAGE stack
+aws-custom-class-libraries-nuget-package-deploy-stage:
+  stage: deploy
+  dependencies:
+    - aws-custom-class-libraries-nuget-package-build
+  artifacts:
+    untracked: true
+  environment:
+    name: stage
+  script:
+    - dotnet pack -c Release
+    - dotnet nuget add source "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/nuget/index.json" --name gitlab --username gitlab-ci-token --password $CI_JOB_TOKEN --store-password-in-clear-text
+    - dotnet nuget push "aws-custom-class-libraries/nuget/components/nuget-class-library/bin/Release/*.nupkg" --source gitlab
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "stage"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
+
+# Deploy the aws-custom-class-libraries-nuget-package solution to PROD stack
+aws-custom-class-libraries-nuget-package-deploy-prod:
+  stage: deploy
+  dependencies:
+    - aws-custom-class-libraries-nuget-package-build
+  artifacts:
+    untracked: true
+  environment:
+    name: prod
+  script:
+    - dotnet pack -c Release
+    - dotnet nuget add source "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/nuget/index.json" --name gitlab --username gitlab-ci-token --password $CI_JOB_TOKEN --store-password-in-clear-text
+    - dotnet nuget push "aws-custom-class-libraries/nuget/components/nuget-class-library/bin/Release/*.nupkg" --source gitlab
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "prod"'
+      changes:
+        - aws-custom-class-libraries/nuget/*
+      when: always
